@@ -34,6 +34,7 @@ export default class TokenPage extends Component {
             tokenName,
             tokenAvailabilityInDays,
             timeStamp,
+            tokensBought: 0,
             tokens,
             status: true,
             expired: false,
@@ -64,7 +65,6 @@ export default class TokenPage extends Component {
         const user = this.props.navigation.getParam("user");
         database.ref(`users/${user.uid}/company`).on('value', snapshot => {
             if (snapshot.exists()) {
-
                 database.ref(`users/${user.uid}/company/tokens`).on("value", tokenSnapshot => {
                     const tokens = [];
                     tokenSnapshot.forEach(token => {
@@ -185,7 +185,7 @@ export default class TokenPage extends Component {
                             <View style={styles.tokenContainer} key={tokenKeys[index]}>
                                 <Text>Token Name: {token.tokenName}</Text>
                                 <Text>Token Limits: {token.tokens}</Text>
-                                <Text>Tokens Bought: {[].length}</Text>
+                                <Text>Tokens Bought: {token.tokensBought}</Text>
                                 <Text>Status: {token.status ? "Enabled" : "Disabled"}</Text>
                                 <Text>Available till: {moment(token.timeStamp).format("MMMM Do YYYY")}</Text>
                                 <Button title="Disable/Enable Tokens" onPress={() => this.toggleTokenStatus(tokenKeys[index], token)} />

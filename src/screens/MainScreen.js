@@ -16,7 +16,9 @@ export default class MainScreen extends Component {
                     })} />
                 </View>
                 <View style={styles.button}>
-                    <Button title="Are you looking to buy tokens?" onPress={() => console.log("Individual")} />
+                    <Button title="Are you looking to buy tokens?" onPress={() => this.props.navigation.navigate("Individual", {
+                        user,
+                    })} />
                 </View>
             </View>
         )
