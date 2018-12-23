@@ -16,6 +16,8 @@ export default class TokenPage extends Component {
         companyName: "Test Company",
         companyTokens: [],
         tokenKeys: [],
+        updateFlag: false,
+        tokenKey: "",
         companyExists: true
     };
 
@@ -27,6 +29,7 @@ export default class TokenPage extends Component {
         };
         const currentTime = new Date().getTime();
         const timeStamp = currentTime + (tokenAvailabilityInDays * 24 * 60 * 60 * 1000)
+        const user = this.props.navigation.getParam("user");
         database.ref(`users/${user.uid}/company/tokens`).push().set({
             tokenName,
             tokenAvailabilityInDays,
@@ -59,21 +62,24 @@ export default class TokenPage extends Component {
             console.log(token);
         };
         const user = this.props.navigation.getParam("user");
-        database.ref(`users/${user.uid}/company/tokens`).on('value', snapshot => {
-            if(snapshot.exists()) {
-                const tokens = [];
-                snapshot.forEach(token => {
-                    if(moment().format("MMMM Do YYYY") === token.val().tokenAvailabilityInDays) {
-                        database.ref(`users/${user.uid}/company/tokens/${token.key}`).remove()
-                    }
-                    else {
-                        tokens.push(token.val());
-                        tokenKeys.push(token.key)
-                        this.setState({ companyTokens: tokens })
-                    }
-                });
-                console.log(tokens);
-                this.setState({ companyTokens: tokens })
+        database.ref(`users/${user.uid}/company`).on('value', snapshot => {
+            if (snapshot.exists()) {
+
+                database.ref(`users/${user.uid}/company/tokens`).on("value", tokenSnapshot => {
+                    const tokens = [];
+                    tokenSnapshot.forEach(token => {
+                        if (moment().format("MMMM Do YYYY") === token.val().tokenAvailabilityInDays) {
+                            database.ref(`users/${user.uid}/company/tokens/${token.key}`).remove()
+                        }
+                        else {
+                            tokens.push(token.val());
+                            tokenKeys.push(token.key)
+                            this.setState({ companyTokens: tokens, companyName: snapshot.val().companyName })
+                        }
+                    });
+                    console.log(tokens);
+                    this.setState({ companyTokens: tokens })
+                })
             }
             else {
                 this.setState({ companyExists: false })
@@ -81,19 +87,39 @@ export default class TokenPage extends Component {
         });
     };
 
-    updateToken(token) {
+    updateToken(token, key) {
         this.setState({
             tokenName: token.tokenName,
             tokens: token.tokens,
-            tokenAvailabilityInDays: token.tokenAvailabilityInDays
+            tokenAvailabilityInDays: token.tokenAvailabilityInDays,
+            tokenKey: key,
+            updateFlag: true
         });
     };
+
+    update = () => {
+        const { tokenName, tokens, tokenAvailabilityInDays, tokenKey } = this.state;
+        const user = this.props.navigation.getParam("user");
+        database.ref(`users/${user.uid}/company/tokens/${tokenKey}`).update({
+            tokenName,
+            tokens,
+            tokenAvailabilityInDays
+        });
+        this.setState({
+            tokenName: "",
+            tokens: 30,
+            tokenAvailabilityInDays: 1,
+            tokenKey: "",
+            updateFlag: true
+        });
+    }
 
     toggleTokenStatus(key, token) {
         const localNotification = {
             title: 'Success',
             body: `Your token's status has changed`
         };
+        const user = this.props.navigation.getParam("user");
         database.ref(`users/${user.uid}/company/tokens/${key}`).update({
             status: token.status ? false : true
         })
@@ -101,28 +127,31 @@ export default class TokenPage extends Component {
     }
 
     render() {
-        const { 
-            tokenName, 
-            tokens, 
-            companyName, 
-            tokenAvailabilityInDays, 
-            companyTokens, 
+        const {
+            tokenName,
+            tokens,
+            companyName,
+            tokenAvailabilityInDays,
+            companyTokens,
             tokenKeys,
             companyExists
         } = this.state;
         if (!companyExists) {
             return (
                 <View style={styles.container}>
-                    <Text>It seems you don't have a company registered in this.</Text>                    
+                    <Text>It seems you don't have a company registered in this.</Text>
                     <Text>Press the button below to go register your company</Text>
                     <View style={styles.button}>
-                        <Button title="Add Company" onPress={() => this.props.navigation.navigate("Company")} />                    
+                        <Button title="Add Company" onPress={() => this.props.navigation.navigate("Company")} />
+                    </View>
+                    <View style={styles.button}>
+                        <Button title="Go Back" onPress={() => this.props.navigation.goBack()} />
                     </View>
                 </View>
             );
         };
         return (
-            <View style={styles.container}>
+            <ScrollView contentContainerStyle={styles.container}>
                 <Text>Tokens for: {companyName}</Text>
                 <View style={styles.inputContainer}>
                     <Text>Token Name</Text>
@@ -148,7 +177,7 @@ export default class TokenPage extends Component {
                         <Picker.Item label="two weeks" value={14} />
                     </Picker>
                 </View>
-                <Button title="Generate Tokens" onPress={() => this.submitTokenRequest()} />
+                {<Button title="Generate Tokens" onPress={() => this.submitTokenRequest()} />}
                 <Text>Present Available Tokens</Text>
                 <View>
                     {companyTokens.map((token, index) => {
@@ -160,12 +189,15 @@ export default class TokenPage extends Component {
                                 <Text>Status: {token.status ? "Enabled" : "Disabled"}</Text>
                                 <Text>Available till: {moment(token.timeStamp).format("MMMM Do YYYY")}</Text>
                                 <Button title="Disable/Enable Tokens" onPress={() => this.toggleTokenStatus(tokenKeys[index], token)} />
-                                <Button title="Update Tokens" onPress={() => this.updateToken(token)} />
+                                <Button title="Update Tokens" onPress={() => this.updateToken(token, tokenKeys[index])} />
                             </View>
                         );
                     })}
                 </View>
-            </View>
+                <View style={styles.button}>
+                    <Button title="Go Back" onPress={() => this.props.navigation.goBack()} />
+                </View>
+            </ScrollView>
         );
     };
 };

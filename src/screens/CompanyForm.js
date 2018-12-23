@@ -29,18 +29,24 @@ export default class MainScreen extends Component {
         }
     }
 
-    componentDidMount = async () => {
+    async componentDidMount() {
         const { status } = await Permissions.getAsync(Permissions.CAMERA_ROLL, Permissions.LOCATION);
+        console.log(status);
         if (status !== "granted") {
-            const { status } = await Permissions.askAsync(Permissions.CAMERA_ROLL, Permissions.LOCATION);
-            if (status !== "granted") {
+            const { status: newStatus } = await Permissions.askAsync(Permissions.CAMERA_ROLL, Permissions.LOCATION);
+            console.log(newStatus)
+            if (newStatus !== "granted") {
                 Alert.alert("Warning", "You need to allow us or we can't let you register")
             }
-            else {
-                const { coords } = await Location.getCurrentPositionAsync({ enableHighAccuracy: true });
-                this.setState({ coords });
-            }
         }
+        const { coords } = await Location.getCurrentPositionAsync({ enableHighAccuracy: true });
+        console.log(coords)
+        this.setState({
+            coords: {
+                latitude: coords.latitude,
+                longitude: coords.longitude
+            }
+        });
     }
 
     takeCertificates = async () => {
@@ -59,86 +65,86 @@ export default class MainScreen extends Component {
     submitForm = async () => {
         const { certificates, companyName, timings, workingSince, companyLocation } = this.state
         const certificatesURL = []
-        certificates.map(async (certificate) => {
-            const response = await fetch(certificate.uri);
-            const blob = await response.blob();
-            var metadata = {
-                contentType: 'image/jpeg',
-            };
-            let name = new Date().getTime() + "-media.jpg"
-            const storageRef = storage.ref(`images/${name}`)
-            storageRef.put(blob, metadata)
-                .then(snapshot => {
-                    if (snapshot.state === "")
-                        storageRef.getDownloadURL().then(url => {
-                            console.log(url);
-                            certificatesURL.push(url)
-                            if ((index + 1) === certificates.length) {
-                                const info = {
-                                    certificates: certificatesURL,
-                                    companyName,
-                                    workingSince,
-                                    location: companyLocation,
-                                    timings
-                                }
-                            }
-                        })
-                })
-        })
+        // certificates.map(async (certificate) => {
+        //     const response = await fetch(certificate.uri);
+        //     console.log(response);
+        //     const blob = await response.blob();
+        //     console.log(blob)
+        //     var metadata = {
+        //         contentType: 'image/jpeg',
+        //     };
+        //     let name = new Date().getTime() + "-media.jpg"
+        //     const storageRef = storage.ref(`images/${name}`)
+        //     storageRef.put(blob, metadata)
+        //         .then(snapshot => {
+        //             storageRef.getDownloadURL().then(url => {
+        //                 console.log(url);
+        //                 certificatesURL.push(url)
+        //                 if ((index + 1) === certificates.length) {
+                            
+        //                 }
+        //             })
+        //         })
+        // })
+        const info = {
+            companyName,
+            workingSince,
+            location: companyLocation,
+            timings
+        };
+
+        console.log(info)
+        database.ref(`users/${firebase.auth().currentUser.uid}/company`).set(info)
+        this.props.navigation.navigate("Tokens");
     }
 
-    showMap = (coords) => {
+    confirmLocation = (coords) => {
         this.setState({
             companyLocation: {
                 latitude: coords.lat,
-                longitude: coords.lng
+                longitude: coords.lng,
+                latitudeDelta: 0.09,
+                longitudeDelta: 0.09
             },
-            locationSection: true
+            locationForm: false
         })
     }
     search = () => {
-        const { locationQuery } = this.state
-        Location.getCurrentPositionAsync({ enableHighAccuracy: true }).then(coords => {
-            console.log(coords)
-            fetch(`https://api.foursquare.com/v2/venues/explore?client_id=${FOURSQUARE_CLIENT_ID}&client_secret=${FOURSQUARE_CLIENT_SECRET}&v=20180323&query=${locationQuery}&ll=${coords.lattitude},${coords.longitude}`)
-                .then(response => response.json())
-                .then(data => {
-                    console.log(data)
-                    this.setState({locationResult: data.response.groups[0].items})})
-                .catch(error => console.log(error))
+        const { locationQuery, coords } = this.state
+        Location.getCurrentPositionAsync({ enableHighAccuracy: true }).then(result => {
+            console.log(result)
         })
+        fetch(`https://api.foursquare.com/v2/venues/explore?client_id=${FOURSQUARE_CLIENT_ID}&client_secret=${FOURSQUARE_CLIENT_SECRET}&v=20180323&query=${locationQuery}&ll=40.7243,-74.0018&limit=1`)
+            .then(response => {
+                console.log(response)
+                return response.json();
+            })
+            .then(data => {
+                console.log(data)
+                this.setState({ locationResult: data.response.groups[0].items })
+            })
+            .catch(error => console.log(error))
     }
 
     render() {
-        const { locationForm, locationSection, locationQuery, coords, locationResult } = this.state;
+        const { locationForm, locationQuery, locationResult, companyName, timings, workingSince } = this.state;
 
         if (locationForm) {
-            if (locationSection) {
-                return (
-                    <View style={styles.container}>
-                        <MapView loadingEnabled region={coords} />
-                        <View style={styles.button}>
-                            <Button title="Go Back" onPress={() => this.setState({ locationSection: false })} />
-                        </View>
-                    </View>
-                );
-            }
             return (
                 <ScrollView contentContainerStyle={styles.container}>
                     <View style={styles.inputContainer}>
                         <TextInput value={locationQuery} style={styles.input} onChangeText={(text) => this.setState({ locationQuery: text })} />
                         <Button title="Find Location" onPress={() => this.search()} />
                     </View>
-                    {locationResult.length === 0 ? 
+                    {locationResult.length === 0 ?
                         <Text>Search for your location</Text> :
                         <View style={styles.inputContainer}>
                             {locationResult.map(result => {
                                 return (
-                                    <View style={styles.tokenContainer}>
+                                    <View style={styles.tokenContainer} key={result.venue.name}>
                                         <Text>{result.venue.name}</Text>
                                         <Text>{result.venue.location.formattedAddress.join(", ")}</Text>
-                                        <Text>Ratings: {result.venue.rating}</Text>
-                                        <Button title="Show Location" onPress={() => this.showMap(result.venue.location)}/>
+                                        <Button title="Confirm Location" onPress={() => this.confirmLocation(result.venue.location)} />
                                     </View>
                                 );
                             })}
@@ -153,11 +159,11 @@ export default class MainScreen extends Component {
             <View style={styles.container}>
                 <View style={styles.inputContainer}>
                     <Text>Company Name</Text>
-                    <TextInput style={styles.input} onChangeText={(text) => this.setState({ companyName: text })} />
+                    <TextInput value={companyName} style={styles.input} onChangeText={(text) => this.setState({ companyName: text })} />
                 </View>
                 <View style={styles.inputContainer}>
                     <Text>Working Since</Text>
-                    <TextInput style={styles.input} onChangeText={(text) => this.setState({ workingSince: text })} />
+                    <TextInput value={workingSince} style={styles.input} onChangeText={(text) => this.setState({ workingSince: text })} />
                 </View>
                 <View style={styles.inputContainer}>
                     <Text>Certificates</Text>
@@ -165,14 +171,14 @@ export default class MainScreen extends Component {
                 </View>
                 <View style={styles.inputContainer}>
                     <Text>Timings</Text>
-                    <TextInput style={styles.input} onChangeText={(text) => this.setState({ timings: text })} />
+                    <TextInput value={timings} style={styles.input} onChangeText={(text) => this.setState({ timings: text })} />
                 </View>
                 <View style={styles.inputContainer}>
                     <Text>Location</Text>
                     <Button title="Find your location" onPress={() => this.setState({ locationForm: true })} />
                 </View>
                 <View style={styles.button}>
-                    <Button title="Submit" onPress={() => console.log("Company")} />
+                    <Button title="Submit" onPress={() => this.submitForm()} />
                 </View>
             </View>
         )
